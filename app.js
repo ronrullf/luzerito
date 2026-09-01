@@ -1,11 +1,14 @@
-// app.js - State Machine Architecture para LuzControl
+// app.js - State Machine Architecture para LuzControl con Dexie.js (IndexedDB)
 
-// === STATE MACHINE VARIABLES ===
-const STORAGE_KEY = "luzcontrol-config-v2";
-const CHECKLIST_KEY = "luzcontrol-checklist";
+// === CONFIGURACIÓN DE BASE DE DATOS LOCAL ===
+const db = new Dexie("LuzControlDB");
+db.version(1).stores({
+  config: 'id',       // Guardará la configuración global
+  checklist: 'id'     // Guardará el estado de las tareas
+});
 
-let currentConfig = null; // { startTime: "11:00", endTime: "16:00", activeDays: [1, 3, 5], durationHours: 5 }
-let activeThemeState = "UNKNOWN"; // "CON_LUZ" o "SIN_LUZ"
+let currentConfig = null;
+let activeThemeState = "UNKNOWN";
 let stateLoopInterval = null;
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -16,39 +19,26 @@ document.addEventListener("DOMContentLoaded", () => {
 // MOD_01: ENTRYPOINT & PERMISSIONS
 // ============================================================
 async function initAppFlow() {
-  // 1. Service worker init
   if ("serviceWorker" in navigator) {
-    try {
-      await navigator.serviceWorker.register("/sw.js");
-    } catch (e) {
-      console.error("SW Registration failed", e);
-    }
+    try { await navigator.serviceWorker.register("/sw.js"); } 
+    catch (e) { console.error("SW Registration failed", e); }
   }
 
-  // 2. Load Config from LocalStorage
-  loadConfig();
+  // Cargar desde Dexie DB
+  await loadConfig();
 
-  // 3. A2HS check vs Standalone
   const isStandalone = window.matchMedia("(display-mode: standalone)").matches;
   
   if (!currentConfig) {
-    // Force onboarding
     document.getElementById("view-onboarding").classList.remove("hidden");
   } else {
-    // App is ready to run
     startDashboardMachine();
   }
 
-  // Bind Onboarding Start
   document.getElementById("btn-start-onboarding").addEventListener("click", () => {
     document.getElementById("view-onboarding").classList.add("hidden");
-    
-    // Check A2HS recommendation
-    if (!isStandalone) {
-      document.getElementById("view-a2hs").classList.remove("hidden");
-    } else {
-      showPermissionModal();
-    }
+    if (!isStandalone) document.getElementById("view-a2hs").classList.remove("hidden");
+    else showPermissionModal();
   });
 
   document.getElementById("btn-dismiss-a2hs").addEventListener("click", () => {
@@ -58,14 +48,13 @@ async function initAppFlow() {
 
   setupPermissionModal();
   initSettingsForm();
-  initChecklist();
+  await initChecklist();
   initBottomNav();
   initDeviations();
 }
 
 function showPermissionModal() {
   if (!("Notification" in window) || Notification.permission === "granted" || Notification.permission === "denied") {
-    // If already decided or unsupported, go to settings
     showView("view-ajustes");
     document.getElementById("bottom-nav").classList.remove("hidden");
   } else {
@@ -77,7 +66,7 @@ function setupPermissionModal() {
   const modal = document.getElementById("modal-permission");
   const btnRequest = document.getElementById("btn-request-perm");
   const btnDismiss = document.getElementById("btn-dismiss-perm");
-  const btnOpen = document.getElementById("btn-open-perm"); // Bell icon on dashboard
+  const btnOpen = document.getElementById("btn-open-perm");
 
   if (btnOpen) {
     btnOpen.addEventListener("click", () => {
@@ -102,18 +91,18 @@ function setupPermissionModal() {
 }
 
 // ============================================================
-// MOD_02: SCHEDULE SETUP & PERSISTENCE
+// MOD_02: SCHEDULE SETUP & PERSISTENCE (DEXIE)
 // ============================================================
-function loadConfig() {
+async function loadConfig() {
   try {
-    const data = localStorage.getItem(STORAGE_KEY);
-    if (data) currentConfig = JSON.parse(data);
-  } catch (e) { console.error("Error loading config"); }
+    const data = await db.config.get('main');
+    if (data) currentConfig = data;
+  } catch (e) { console.error("Error loading config", e); }
 }
 
-function saveConfig(cfg) {
+async function saveConfig(cfg) {
   currentConfig = cfg;
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(cfg));
+  await db.config.put({ id: 'main', ...cfg }); // Guarda asíncronamente en IndexedDB
   startDashboardMachine();
   scheduleNotificationsEngine();
 }
@@ -122,7 +111,6 @@ function initSettingsForm() {
   const form = document.getElementById("settings-form");
   const chips = document.querySelectorAll(".day-chip");
   
-  // Pre-fill
   if (currentConfig) {
     document.getElementById("input-start-time").value = currentConfig.startTime;
     document.getElementById("input-end-time").value = currentConfig.endTime;
@@ -131,12 +119,11 @@ function initSettingsForm() {
     });
   }
 
-  // Toggle Days
   chips.forEach(chip => {
     chip.addEventListener("click", () => chip.classList.toggle("active"));
   });
 
-  form.addEventListener("submit", (e) => {
+  form.addEventListener("submit", async (e) => {
     e.preventDefault();
     const st = document.getElementById("input-start-time").value;
     const et = document.getElementById("input-end-time").value;
@@ -144,25 +131,23 @@ function initSettingsForm() {
 
     if (active.length === 0) return showToast("⚠️ Selecciona al menos un día");
     
-    // Calc Duration
     let [sh, sm] = st.split(":").map(Number);
     let [eh, em] = et.split(":").map(Number);
     let diffMins = (eh * 60 + em) - (sh * 60 + sm);
-    if (diffMins <= 0) diffMins += 24 * 60; // Next day end
+    if (diffMins <= 0) diffMins += 24 * 60; 
     
     const cfg = { startTime: st, endTime: et, activeDays: active, durationHours: (diffMins/60).toFixed(1) };
-    saveConfig(cfg);
-    showToast("✅ Horario guardado");
+    await saveConfig(cfg);
+    showToast("✅ Horario guardado en IndexedDB");
     
     showView("view-estado");
-    // Ensure Nav is selected properly
     document.querySelectorAll(".nav-tab").forEach(t => t.classList.remove("opacity-100", "scale-110"));
     document.querySelector('[data-view="view-estado"]').classList.add("opacity-100", "scale-110");
   });
 
-  // Utilities
-  document.getElementById("btn-reset-data").addEventListener("click", () => {
-    if(confirm("¿Borrar todos los datos?")) {
+  document.getElementById("btn-reset-data").addEventListener("click", async () => {
+    if(confirm("¿Borrar todos los datos locales?")) {
+      await db.delete(); // Elimina toda la base de datos Dexie
       localStorage.clear();
       location.reload();
     }
@@ -171,15 +156,15 @@ function initSettingsForm() {
   document.getElementById("btn-test-push").addEventListener("click", async () => {
     if (Notification.permission === "granted" && "serviceWorker" in navigator) {
       const reg = await navigator.serviceWorker.ready;
-      reg.showNotification("🔔 Alarma de Prueba", { body: "El sistema de notificaciones está funcionando.", icon: "/icons/icon-192.png" });
+      reg.showNotification("🔔 Alarma de Prueba", { body: "El sistema offline está funcionando.", icon: "/icons/icon-192.png" });
     } else {
-      showToast("⚠️ Permisos de notificación no otorgados");
+      showToast("⚠️ Permisos de notificación denegados");
     }
   });
 }
 
 // ============================================================
-// MOD_03: DASHBOARD ENGINE & LIVE DEVIATIONS
+// MOD_03: DASHBOARD ENGINE
 // ============================================================
 function startDashboardMachine() {
   document.getElementById("main-app").classList.remove("hidden");
@@ -203,7 +188,6 @@ function evaluateDashboardState() {
   const cutStart = new Date(now); cutStart.setHours(sh, sm, 0, 0);
   const cutEnd = new Date(now); cutEnd.setHours(eh, em, 0, 0);
   
-  // Handle overnight schedules
   if (cutEnd <= cutStart) {
     if (now < cutStart && now < cutEnd) cutStart.setDate(cutStart.getDate() - 1);
     else cutEnd.setDate(cutEnd.getDate() + 1);
@@ -216,29 +200,23 @@ function evaluateDashboardState() {
     isCutActive = true;
     targetTime = cutEnd;
   } else if (!isActiveDay || now > cutEnd) {
-    // Find next active day start time
-    // For simplicity of this UI, we just point to the next cutStart if it's today, or show 00:00
     if (now > cutStart) targetTime.setDate(targetTime.getDate() + 1);
   }
 
-  // Theme Transition logic
   const newState = isCutActive ? "SIN_LUZ" : "CON_LUZ";
   if (activeThemeState !== newState) applyTheme(newState);
 
-  // Update UI Elements
   const display = document.getElementById("countdown-display");
   const timeDiff = targetTime - now;
 
   if (timeDiff > 0 && (isActiveDay || isCutActive)) {
     const h = Math.floor(timeDiff / 3600000);
     const m = Math.floor((timeDiff % 3600000) / 60000);
-    const s = Math.floor((timeDiff % 60000) / 1000);
     display.textContent = `${String(h).padStart(2,"0")}h ${String(m).padStart(2,"0")}m`;
   } else {
     display.textContent = "--h --m";
   }
 
-  // Setup Card Info
   const startAmPm = format12H(sh, sm);
   const endAmPm = format12H(eh, em);
   document.getElementById("block-time-range").textContent = `${startAmPm} – ${endAmPm}`;
@@ -285,7 +263,7 @@ function applyTheme(state) {
 }
 
 function initDeviations() {
-  document.getElementById("btn-ajustar-30").addEventListener("click", () => {
+  document.getElementById("btn-ajustar-30").addEventListener("click", async () => {
     if(!currentConfig) return;
     let [sh, sm] = currentConfig.startTime.split(":").map(Number);
     let [eh, em] = currentConfig.endTime.split(":").map(Number);
@@ -296,17 +274,16 @@ function initDeviations() {
     currentConfig.startTime = `${String(sh).padStart(2,"0")}:${String(sm).padStart(2,"0")}`;
     currentConfig.endTime = `${String(eh).padStart(2,"0")}:${String(em).padStart(2,"0")}`;
     
-    saveConfig(currentConfig);
+    await saveConfig(currentConfig);
     evaluateDashboardState();
     showToast("⏱️ Horario ajustado +30 min");
   });
 
-  document.getElementById("btn-early-restore").addEventListener("click", () => {
+  document.getElementById("btn-early-restore").addEventListener("click", async () => {
     if(!currentConfig) return;
-    // Early restore logic: temporarily set end time to NOW so the machine flips back to Light
     const now = new Date();
     currentConfig.endTime = `${String(now.getHours()).padStart(2,"0")}:${String(now.getMinutes()).padStart(2,"0")}`;
-    saveConfig(currentConfig);
+    await saveConfig(currentConfig);
     evaluateDashboardState();
     showToast("✅ Retorno anticipado registrado");
   });
@@ -319,7 +296,7 @@ function format12H(h, m) {
 }
 
 // ============================================================
-// MOD_04: PUSH SCHEDULER & CHECKLIST
+// MOD_04: PUSH SCHEDULER & CHECKLIST (DEXIE)
 // ============================================================
 let timeoutHandles = [];
 
@@ -360,26 +337,26 @@ function scheduleNotificationsEngine() {
   });
 }
 
-function initChecklist() {
+async function initChecklist() {
   const cbs = document.querySelectorAll(".checklist-item");
-  const state = JSON.parse(localStorage.getItem(CHECKLIST_KEY) || "{}");
+  const today = new Date().toDateString();
   
+  let stateRec = await db.checklist.get('main');
+  let state = stateRec ? stateRec.data : {};
+  
+  if (stateRec && stateRec.date !== today) {
+    state = {}; // Reset at midnight
+  }
+
   cbs.forEach(cb => {
     if (state[cb.id] !== undefined) cb.checked = state[cb.id];
-    cb.addEventListener("change", () => {
+    cb.addEventListener("change", async () => {
       state[cb.id] = cb.checked;
-      localStorage.setItem(CHECKLIST_KEY, JSON.stringify(state));
+      await db.checklist.put({ id: 'main', date: today, data: state });
     });
   });
 
-  // Reset check at midnight
-  const lastDate = localStorage.getItem(CHECKLIST_KEY+"-date");
-  const today = new Date().toDateString();
-  if (lastDate !== today) {
-    cbs.forEach(cb => { cb.checked = false; state[cb.id] = false; });
-    localStorage.setItem(CHECKLIST_KEY, JSON.stringify(state));
-    localStorage.setItem(CHECKLIST_KEY+"-date", today);
-  }
+  await db.checklist.put({ id: 'main', date: today, data: state });
 }
 
 // ============================================================
@@ -400,7 +377,7 @@ function showView(id) {
   document.querySelectorAll(".view-section").forEach(v => v.classList.add("hidden"));
   const view = document.getElementById(id);
   if (view) view.classList.remove("hidden");
-  // FIX: Asegurar que el contenedor principal siempre esté visible al cambiar de vista
+  
   const mainApp = document.getElementById("main-app");
   if (mainApp) mainApp.classList.remove("hidden");
 }

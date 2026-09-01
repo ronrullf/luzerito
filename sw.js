@@ -1,6 +1,6 @@
 // sw.js - Service Worker Offline y Manejador de Notificaciones
 
-const CACHE_NAME = "luzcontrol-v2";
+const CACHE_NAME = "luzcontrol-v3";
 const ASSETS = [
   "/",
   "/index.html",
@@ -8,7 +8,8 @@ const ASSETS = [
   "/app.js",
   "/icons/icon-192.png",
   "/icons/icon-512.png",
-  "/icons/badge-72.png"
+  "/icons/badge-72.png",
+  "https://unpkg.com/dexie/dist/dexie.js"
 ];
 
 // Instalación y precaching de assets esenciales
