@@ -287,6 +287,26 @@ function initDeviations() {
     evaluateDashboardState();
     showToast("✅ Retorno anticipado registrado");
   });
+
+  const btnShare = document.getElementById("btn-share-schedule");
+  if (btnShare) {
+    btnShare.addEventListener("click", async () => {
+      if (!currentConfig) return showToast("⚠️ Configura un horario primero");
+      const [sh, sm] = currentConfig.startTime.split(":").map(Number);
+      const [eh, em] = currentConfig.endTime.split(":").map(Number);
+      const startAmPm = format12H(sh, sm);
+      const endAmPm = format12H(eh, em);
+      const text = `⚠️ Mi zona tendrá racionamiento eléctrico hoy de ${startAmPm} a ${endAmPm} (${currentConfig.durationHours} horas). Estaré sin conexión en ese bloque.`;
+      
+      if (navigator.share) {
+        try { await navigator.share({ title: 'Mi Horario de Corte', text: text }); } 
+        catch (e) { console.error(e); }
+      } else {
+        navigator.clipboard.writeText(text);
+        showToast("📋 Texto copiado al portapapeles");
+      }
+    });
+  }
 }
 
 function format12H(h, m) {
@@ -337,26 +357,79 @@ function scheduleNotificationsEngine() {
   });
 }
 
+const defaultTasks = [
+  { id: 'chk_phones', label: 'Cargar teléfono y Powerbanks' },
+  { id: 'chk_ups', label: 'Conectar Mini UPS del módem' },
+  { id: 'chk_bulbs', label: 'Cargar bombillos recargables' },
+  { id: 'chk_balance', label: 'Verificar saldo (Digitel/Movistar)' },
+  { id: 'chk_protect', label: 'Desconectar protectores AC/Nevera' }
+];
+
 async function initChecklist() {
-  const cbs = document.querySelectorAll(".checklist-item");
+  const container = document.getElementById("checklist-items");
+  const form = document.getElementById("form-custom-task");
+  const input = document.getElementById("input-custom-task");
+  
   const today = new Date().toDateString();
-  
   let stateRec = await db.checklist.get('main');
-  let state = stateRec ? stateRec.data : {};
   
-  if (stateRec && stateRec.date !== today) {
-    state = {}; // Reset at midnight
+  let tasks = (stateRec && stateRec.date === today) ? stateRec.tasks : [];
+
+  if (tasks.length === 0) {
+    tasks = defaultTasks.map(t => ({ ...t, checked: false, isCustom: false }));
+    await db.checklist.put({ id: 'main', date: today, tasks });
   }
 
-  cbs.forEach(cb => {
-    if (state[cb.id] !== undefined) cb.checked = state[cb.id];
-    cb.addEventListener("change", async () => {
-      state[cb.id] = cb.checked;
-      await db.checklist.put({ id: 'main', date: today, data: state });
+  function renderTasks() {
+    container.innerHTML = "";
+    tasks.forEach((task, index) => {
+      const label = document.createElement("label");
+      label.className = "flex items-center gap-3 text-sm font-medium text-[var(--text-secondary)] cursor-pointer group";
+      
+      const checkbox = document.createElement("input");
+      checkbox.type = "checkbox";
+      checkbox.className = "w-5 h-5 rounded-md text-pink-500 focus:ring-pink-500 accent-pink-500";
+      checkbox.checked = task.checked;
+      checkbox.addEventListener("change", async () => {
+        tasks[index].checked = checkbox.checked;
+        await db.checklist.put({ id: 'main', date: today, tasks });
+      });
+
+      const span = document.createElement("span");
+      span.className = "flex-1";
+      span.textContent = task.label;
+      if(task.checked) span.classList.add("line-through", "opacity-60");
+
+      label.appendChild(checkbox);
+      label.appendChild(span);
+
+      if (task.isCustom) {
+        const delBtn = document.createElement("button");
+        delBtn.innerHTML = "🗑️";
+        delBtn.className = "opacity-0 group-hover:opacity-100 transition-opacity text-xs p-1";
+        delBtn.onclick = async (e) => {
+          e.preventDefault();
+          tasks.splice(index, 1);
+          await db.checklist.put({ id: 'main', date: today, tasks });
+          renderTasks();
+        };
+        label.appendChild(delBtn);
+      }
+      container.appendChild(label);
     });
+  }
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const val = input.value.trim();
+    if (!val) return;
+    tasks.push({ id: 'custom_' + Date.now(), label: val, checked: false, isCustom: true });
+    await db.checklist.put({ id: 'main', date: today, tasks });
+    input.value = "";
+    renderTasks();
   });
 
-  await db.checklist.put({ id: 'main', date: today, data: state });
+  renderTasks();
 }
 
 // ============================================================

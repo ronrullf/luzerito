@@ -142,35 +142,28 @@
         </div>
 
         <div class="pt-3 border-t border-[var(--glass-border)] flex justify-between items-center text-xs font-semibold">
-          <button id="btn-ajustar-30" class="px-3 py-1.5 rounded-full liquid-card shadow-sm hover:opacity-80 transition active:scale-95 text-[var(--text-primary)]">+30m Retraso</button>
-          <button id="btn-early-restore" class="px-3 py-1.5 rounded-full bg-green-500/20 text-green-600 shadow-sm transition active:scale-95 hidden">Luz Regresó</button>
+          <div class="flex gap-2">
+            <button id="btn-ajustar-30" class="px-3 py-1.5 rounded-full liquid-card shadow-sm hover:opacity-80 transition active:scale-95 text-[var(--text-primary)]">+30m Retraso</button>
+            <button id="btn-early-restore" class="px-3 py-1.5 rounded-full bg-green-500/20 text-green-600 shadow-sm transition active:scale-95 hidden">Luz Regresó</button>
+          </div>
+          <button id="btn-share-schedule" class="px-3 py-1.5 rounded-full bg-blue-500/10 text-blue-500 shadow-sm transition active:scale-95 flex items-center gap-1">
+            📤 Compartir
+          </button>
         </div>
       </section>
 
-      <!-- Checklist Preventivo interactivo N04_INTERACTIVE_CHECKLIST -->
-      <section class="liquid-glass p-6 flex flex-col gap-3">
+      <!-- Checklist Preventivo Dinámico -->
+      <section class="liquid-glass p-6 flex flex-col gap-3" id="checklist-container">
         <h3 class="text-sm font-bold text-[var(--text-primary)] mb-1">Checklist Preventivo</h3>
         
-        <label class="flex items-center gap-3 text-sm font-medium text-[var(--text-secondary)] cursor-pointer">
-          <input type="checkbox" id="chk_phones" class="checklist-item w-5 h-5 rounded-md text-pink-500 focus:ring-pink-500 accent-pink-500" />
-          <span>Cargar teléfono y Powerbanks</span>
-        </label>
-        <label class="flex items-center gap-3 text-sm font-medium text-[var(--text-secondary)] cursor-pointer">
-          <input type="checkbox" id="chk_ups" class="checklist-item w-5 h-5 rounded-md text-pink-500 focus:ring-pink-500 accent-pink-500" />
-          <span>Conectar Mini UPS del módem</span>
-        </label>
-        <label class="flex items-center gap-3 text-sm font-medium text-[var(--text-secondary)] cursor-pointer">
-          <input type="checkbox" id="chk_bulbs" class="checklist-item w-5 h-5 rounded-md text-pink-500 focus:ring-pink-500 accent-pink-500" />
-          <span>Cargar bombillos recargables</span>
-        </label>
-        <label class="flex items-center gap-3 text-sm font-medium text-[var(--text-secondary)] cursor-pointer">
-          <input type="checkbox" id="chk_balance" class="checklist-item w-5 h-5 rounded-md text-pink-500 focus:ring-pink-500 accent-pink-500" />
-          <span>Verificar saldo (Digitel/Movistar)</span>
-        </label>
-        <label class="flex items-center gap-3 text-sm font-medium text-[var(--text-secondary)] cursor-pointer">
-          <input type="checkbox" id="chk_protect" class="checklist-item w-5 h-5 rounded-md text-pink-500 focus:ring-pink-500 accent-pink-500" />
-          <span>Desconectar protectores AC/Nevera</span>
-        </label>
+        <!-- Contenedor inyectado por JS -->
+        <div id="checklist-items" class="flex flex-col gap-3"></div>
+        
+        <!-- Formulario para custom tasks -->
+        <form id="form-custom-task" class="mt-3 flex gap-2">
+          <input type="text" id="input-custom-task" placeholder="Ej. Llenar tobos de agua..." class="flex-1 bg-transparent border border-[var(--glass-border)] rounded-xl px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-pink-500">
+          <button type="submit" class="bg-pink-500 text-white rounded-xl px-4 py-2 font-bold active:scale-95 transition shadow-sm">+</button>
+        </form>
       </section>
     </div>
 
