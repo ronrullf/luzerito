@@ -400,6 +400,9 @@ function showView(id) {
   document.querySelectorAll(".view-section").forEach(v => v.classList.add("hidden"));
   const view = document.getElementById(id);
   if (view) view.classList.remove("hidden");
+  // FIX: Asegurar que el contenedor principal siempre esté visible al cambiar de vista
+  const mainApp = document.getElementById("main-app");
+  if (mainApp) mainApp.classList.remove("hidden");
 }
 
 function showToast(msg) {

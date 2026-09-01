@@ -1,6 +1,6 @@
 // sw.js - Service Worker Offline y Manejador de Notificaciones
 
-const CACHE_NAME = "apagon-pwa-v1";
+const CACHE_NAME = "luzcontrol-v2";
 const ASSETS = [
   "/",
   "/index.html",
