@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <link rel="manifest" href="/manifest.json" />
+  <meta name="theme-color" content="#F8F9FA" id="meta-theme-color" />
+  <title>LuzControl</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    /* Transiciones fluidas para el cambio de tema */
+    body {
+      transition: background-color 0.5s ease, color 0.5s ease;
+    }
+
+    /* Variables CSS Dinámicas Controladas por JS */
+    :root {
+      --canvas-bg: #f8f9fa;
+      --glass-bg: rgba(255, 255, 255, 0.75);
+      --glass-border: rgba(255, 255, 255, 0.9);
+      --text-primary: #111827;
+      --text-secondary: #4b5563;
+      --card-bg: rgba(255, 255, 255, 0.6);
+    }
+    
+    body.theme-dark {
+      --canvas-bg: #111827;
+      --glass-bg: rgba(31, 41, 55, 0.75);
+      --glass-border: rgba(75, 85, 99, 0.6);
+      --text-primary: #f9fafb;
+      --text-secondary: #9ca3af;
+      --card-bg: rgba(17, 24, 39, 0.6);
+    }
+
+    body { background-color: var(--canvas-bg); color: var(--text-primary); }
+
+    .liquid-glass {
+      background: var(--glass-bg);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid var(--glass-border);
+      box-shadow: 0 16px 32px rgba(0, 0, 0, 0.04), 0 2px 4px rgba(0, 0, 0, 0.02);
+      border-radius: 32px;
+      color: var(--text-primary);
+      transition: background 0.5s ease, border-color 0.5s ease;
+    }
+    
+    .liquid-card {
+      background: var(--card-bg);
+      border: 1px solid var(--glass-border);
+      transition: background 0.5s ease;
+    }
+
+    .fluid-orb {
+      position: absolute;
+      border-radius: 9999px;
+      filter: blur(60px);
+      opacity: 0.7;
+      pointer-events: none;
+      transition: background 1s ease, opacity 1s ease;
+    }
+
+    .day-chip {
+      transition: all 0.2s ease;
+    }
+    .day-chip.active {
+      background-color: #EC4899;
+      color: white;
+      border-color: #EC4899;
+    }
+
+    .energy-dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; margin-right: 6px; }
+    .energy-on { background-color: #10B981; box-shadow: 0 0 10px #10B981; }
+    .energy-off { background-color: #EF4444; box-shadow: 0 0 10px #EF4444; }
+  </style>
+</head>
+<body class="min-h-screen relative overflow-x-hidden font-sans antialiased">
+
+  <!-- Orbes Ambientales Dinámicos -->
+  <div id="orb-1" class="fluid-orb w-64 h-64 bg-gradient-to-tr from-[#FFE259] to-[#FFA751] top-[-30px] right-[-20px] fixed"></div>
+  <div id="orb-2" class="fluid-orb w-72 h-72 bg-gradient-to-tr from-[#FFD6E8] to-[#FF99AC] top-[240px] left-[-40px] fixed"></div>
+
+  <!-- PANTALLA DE SPLASH / ONBOARDING -->
+  <div id="view-onboarding" class="fixed inset-0 z-50 flex flex-col items-center justify-center bg-[var(--canvas-bg)] p-6 hidden">
+    <div class="text-6xl mb-4 animate-bounce">⚡</div>
+    <h1 class="text-3xl font-bold mb-2 text-center text-[var(--text-primary)]">LuzControl</h1>
+    <p class="text-center text-[var(--text-secondary)] mb-8 text-sm">Prevención y gestión de cortes eléctricos inteligentes.</p>
+    <button id="btn-start-onboarding" class="w-full max-w-xs py-4 rounded-2xl bg-gray-900 text-white font-bold shadow-xl active:scale-95 transition dark:bg-white dark:text-gray-900">
+      Configurar mi Horario
+    </button>
+  </div>
+
+  <!-- PANTALLA A2HS (Agregar a inicio) -->
+  <div id="view-a2hs" class="fixed inset-0 z-[55] flex flex-col items-center justify-end bg-black/60 backdrop-blur-sm p-4 hidden">
+    <div class="w-full max-w-sm liquid-glass p-6 bg-white flex flex-col gap-4 text-center pb-10">
+      <div class="text-4xl mx-auto">📱</div>
+      <h3 class="text-lg font-bold text-gray-900">Instala la App</h3>
+      <p class="text-sm text-gray-600">Para recibir notificaciones preventivas y acceso offline, toca el botón de compartir y selecciona <strong>"Agregar a inicio"</strong>.</p>
+      <button id="btn-dismiss-a2hs" class="mt-2 text-xs font-bold text-gray-500 underline">Continuar en el navegador</button>
+    </div>
+  </div>
+
+  <!-- Contenedor Principal (Dashboard) -->
+  <main id="main-app" class="max-w-md mx-auto min-h-screen px-5 pt-8 pb-28 relative z-10 flex flex-col gap-6 hidden">
+
+    <!-- Header -->
+    <header class="flex justify-between items-center">
+      <div>
+        <p class="text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)]">Resumen del Día</p>
+        <h1 class="text-2xl font-bold tracking-tight text-[var(--text-primary)]">Estado Eléctrico</h1>
+      </div>
+      <button id="btn-open-perm" class="w-10 h-10 rounded-full liquid-glass flex items-center justify-center shadow-sm text-xl transition active:scale-95">
+        🔔
+      </button>
+    </header>
+
+    <!-- ========================================== -->
+    <!-- VIEW: ESTADO (Inicio) -->
+    <!-- ========================================== -->
+    <div id="view-estado" class="view-section flex flex-col gap-6">
+      
+      <!-- Métricas Rápidas -->
+      <div>
+        <div class="flex items-baseline gap-4 mb-1">
+          <span id="countdown-display" class="text-5xl font-extrabold tracking-tight text-[var(--text-primary)]">--h --m</span>
+        </div>
+        <div class="flex items-center text-sm font-medium text-[var(--text-secondary)]">
+          <span id="energy-indicator" class="energy-dot energy-on"></span>
+          <span id="status-label">Con Suministro Activo</span>
+        </div>
+      </div>
+
+      <!-- Tarjeta Principal de Racionamiento -->
+      <section class="liquid-glass p-6 flex flex-col gap-4">
+        <div class="flex justify-between items-start">
+          <div>
+            <span class="text-xs font-semibold uppercase text-[var(--text-secondary)]" id="card-cut-subtitle">PRÓXIMO CORTE</span>
+            <h2 id="block-time-range" class="text-xl font-bold text-[var(--text-primary)]">--:-- – --:--</h2>
+            <p id="block-duration" class="text-xs text-[var(--text-secondary)] mt-0.5">Duración estimada: -- horas</p>
+          </div>
+          <div id="card-mini-orb" class="w-12 h-12 rounded-full bg-gradient-to-br from-yellow-300 via-orange-400 to-pink-500 blur-[6px]"></div>
+        </div>
+
+        <div class="pt-3 border-t border-[var(--glass-border)] flex justify-between items-center text-xs font-semibold">
+          <button id="btn-ajustar-30" class="px-3 py-1.5 rounded-full liquid-card shadow-sm hover:opacity-80 transition active:scale-95 text-[var(--text-primary)]">+30m Retraso</button>
+          <button id="btn-early-restore" class="px-3 py-1.5 rounded-full bg-green-500/20 text-green-600 shadow-sm transition active:scale-95 hidden">Luz Regresó</button>
+        </div>
+      </section>
+
+      <!-- Checklist Preventivo interactivo N04_INTERACTIVE_CHECKLIST -->
+      <section class="liquid-glass p-6 flex flex-col gap-3">
+        <h3 class="text-sm font-bold text-[var(--text-primary)] mb-1">Checklist Preventivo</h3>
+        
+        <label class="flex items-center gap-3 text-sm font-medium text-[var(--text-secondary)] cursor-pointer">
+          <input type="checkbox" id="chk_phones" class="checklist-item w-5 h-5 rounded-md text-pink-500 focus:ring-pink-500 accent-pink-500" />
+          <span>Cargar teléfono y Powerbanks</span>
+        </label>
+        <label class="flex items-center gap-3 text-sm font-medium text-[var(--text-secondary)] cursor-pointer">
+          <input type="checkbox" id="chk_ups" class="checklist-item w-5 h-5 rounded-md text-pink-500 focus:ring-pink-500 accent-pink-500" />
+          <span>Conectar Mini UPS del módem</span>
+        </label>
+        <label class="flex items-center gap-3 text-sm font-medium text-[var(--text-secondary)] cursor-pointer">
+          <input type="checkbox" id="chk_bulbs" class="checklist-item w-5 h-5 rounded-md text-pink-500 focus:ring-pink-500 accent-pink-500" />
+          <span>Cargar bombillos recargables</span>
+        </label>
+        <label class="flex items-center gap-3 text-sm font-medium text-[var(--text-secondary)] cursor-pointer">
+          <input type="checkbox" id="chk_balance" class="checklist-item w-5 h-5 rounded-md text-pink-500 focus:ring-pink-500 accent-pink-500" />
+          <span>Verificar saldo (Digitel/Movistar)</span>
+        </label>
+        <label class="flex items-center gap-3 text-sm font-medium text-[var(--text-secondary)] cursor-pointer">
+          <input type="checkbox" id="chk_protect" class="checklist-item w-5 h-5 rounded-md text-pink-500 focus:ring-pink-500 accent-pink-500" />
+          <span>Desconectar protectores AC/Nevera</span>
+        </label>
+      </section>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- VIEW: ARSENAL (Afiliados MOD_05) -->
+    <!-- ========================================== -->
+    <div id="view-arsenal" class="view-section hidden flex flex-col gap-4">
+      <section class="liquid-glass p-6 flex flex-col gap-4">
+        <div class="flex justify-between items-center mb-2">
+          <h3 class="text-sm font-bold text-[var(--text-primary)]">Catálogo de Contingencia</h3>
+          <span class="text-[10px] uppercase font-bold text-pink-600 bg-pink-100 px-2 py-0.5 rounded-full tracking-wide">Ofertas</span>
+        </div>
+
+        <a href="#" class="flex items-center justify-between p-3 rounded-2xl liquid-card hover:opacity-80 transition-all shadow-sm">
+          <div>
+            <p class="text-sm font-bold text-[var(--text-primary)]">Mini UPS 12V para Router</p>
+            <p class="text-[11px] text-[var(--text-secondary)]">Hasta 8 hrs de internet continuo</p>
+          </div>
+          <span class="text-xs font-bold bg-[var(--text-primary)] text-[var(--canvas-bg)] px-2 py-1 rounded-lg shadow-sm">$28.50</span>
+        </a>
+
+        <a href="#" class="flex items-center justify-between p-3 rounded-2xl liquid-card hover:opacity-80 transition-all shadow-sm">
+          <div>
+            <p class="text-sm font-bold text-[var(--text-primary)]">Bombillos LED E27</p>
+            <p class="text-[11px] text-[var(--text-secondary)]">Encendido automático (Pack x4)</p>
+          </div>
+          <span class="text-xs font-bold bg-[var(--text-primary)] text-[var(--canvas-bg)] px-2 py-1 rounded-lg shadow-sm">$14.00</span>
+        </a>
+
+        <a href="#" class="flex items-center justify-between p-3 rounded-2xl liquid-card hover:opacity-80 transition-all shadow-sm">
+          <div>
+            <p class="text-sm font-bold text-[var(--text-primary)]">Powerbank 20.000mAh</p>
+            <p class="text-[11px] text-[var(--text-secondary)]">Power Delivery 22.5W+</p>
+          </div>
+          <span class="text-xs font-bold bg-[var(--text-primary)] text-[var(--canvas-bg)] px-2 py-1 rounded-lg shadow-sm">Ver ➔</span>
+        </a>
+
+        <a href="#" class="flex items-center justify-between p-3 rounded-2xl liquid-card hover:opacity-80 transition-all shadow-sm">
+          <div>
+            <p class="text-sm font-bold text-[var(--text-primary)]">Protector de Voltaje Digital</p>
+            <p class="text-[11px] text-[var(--text-secondary)]">Con temporizador ajustable</p>
+          </div>
+          <span class="text-xs font-bold bg-[var(--text-primary)] text-[var(--canvas-bg)] px-2 py-1 rounded-lg shadow-sm">Ver ➔</span>
+        </a>
+      </section>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- VIEW: AJUSTES (MOD_02 y MOD_06) -->
+    <!-- ========================================== -->
+    <div id="view-ajustes" class="view-section hidden flex flex-col gap-6">
+      <section class="liquid-glass p-6">
+        <h2 class="text-lg font-bold mb-4 text-[var(--text-primary)]">Configurar Bloques</h2>
+        <form id="settings-form" class="flex flex-col gap-4">
+          
+          <div class="flex gap-4">
+            <div class="flex-1">
+              <label class="block text-xs font-semibold text-[var(--text-secondary)] mb-1">Inicio (Corte)</label>
+              <input type="time" id="input-start-time" required class="w-full bg-transparent border border-[var(--glass-border)] rounded-xl px-3 py-2 text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-pink-300" />
+            </div>
+            <div class="flex-1">
+              <label class="block text-xs font-semibold text-[var(--text-secondary)] mb-1">Fin (Retorno)</label>
+              <input type="time" id="input-end-time" required class="w-full bg-transparent border border-[var(--glass-border)] rounded-xl px-3 py-2 text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-pink-300" />
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-xs font-semibold text-[var(--text-secondary)] mb-2">Días de Aplicación</label>
+            <div class="flex justify-between gap-1" id="days-selector">
+              <button type="button" data-day="1" class="day-chip w-10 h-10 rounded-full border border-[var(--glass-border)] text-sm font-bold text-[var(--text-primary)]">L</button>
+              <button type="button" data-day="2" class="day-chip w-10 h-10 rounded-full border border-[var(--glass-border)] text-sm font-bold text-[var(--text-primary)]">M</button>
+              <button type="button" data-day="3" class="day-chip w-10 h-10 rounded-full border border-[var(--glass-border)] text-sm font-bold text-[var(--text-primary)]">M</button>
+              <button type="button" data-day="4" class="day-chip w-10 h-10 rounded-full border border-[var(--glass-border)] text-sm font-bold text-[var(--text-primary)]">J</button>
+              <button type="button" data-day="5" class="day-chip w-10 h-10 rounded-full border border-[var(--glass-border)] text-sm font-bold text-[var(--text-primary)]">V</button>
+              <button type="button" data-day="6" class="day-chip w-10 h-10 rounded-full border border-[var(--glass-border)] text-sm font-bold text-[var(--text-primary)]">S</button>
+              <button type="button" data-day="0" class="day-chip w-10 h-10 rounded-full border border-[var(--glass-border)] text-sm font-bold text-[var(--text-primary)]">D</button>
+            </div>
+          </div>
+
+          <button type="submit" class="mt-4 w-full py-3 rounded-xl bg-pink-500 text-white font-bold shadow-md active:scale-95 transition">
+            Guardar Horario
+          </button>
+        </form>
+      </section>
+
+      <section class="liquid-glass p-6">
+        <h2 class="text-lg font-bold mb-4 text-[var(--text-primary)]">Utilidades</h2>
+        <div class="flex flex-col gap-3">
+          <button id="btn-test-push" class="w-full py-3 rounded-xl liquid-card text-[var(--text-primary)] font-bold active:scale-95 transition">
+            🔔 Probar Notificación
+          </button>
+          <button id="btn-reset-data" class="w-full py-3 rounded-xl bg-red-500/10 text-red-500 font-bold border border-red-500/20 active:scale-95 transition">
+            Restablecer Datos
+          </button>
+        </div>
+      </section>
+    </div>
+
+  </main>
+
+  <!-- Modal Liquid Glass: Solicitud de Permisos Push (N01_PERM_MODAL) -->
+  <aside id="modal-permission" class="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-4 hidden transition-opacity">
+    <div class="w-full max-w-sm liquid-glass p-6 bg-white border-white flex flex-col gap-4 shadow-2xl">
+      <div class="w-12 h-12 rounded-2xl bg-pink-100 flex items-center justify-center text-2xl shadow-inner">
+        ⚡
+      </div>
+      <div>
+        <h4 class="text-lg font-bold text-gray-950">Activar Alertas Preventivas</h4>
+        <p class="text-sm text-gray-600 mt-2 leading-relaxed">
+          Recibe avisos críticos 2h y 1h antes del corte para cargar tus equipos antes de que caigan las antenas móviles.
+        </p>
+      </div>
+      <div class="flex gap-3 mt-4">
+        <button id="btn-dismiss-perm" class="flex-1 py-3 text-sm font-bold rounded-xl bg-gray-200 text-gray-700 active:scale-95 transition">
+          Ahora no
+        </button>
+        <button id="btn-request-perm" class="flex-1 py-3 text-sm font-bold rounded-xl bg-[#FFD6E8] text-gray-900 shadow-sm active:scale-95 transition">
+          Permitir Alertas
+        </button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Floating Glass Bottom Navigation -->
+  <nav id="bottom-nav" class="fixed bottom-6 left-5 right-5 max-w-md mx-auto liquid-glass px-4 py-2 flex justify-between items-center z-40 shadow-xl hidden">
+    <button class="nav-tab text-2xl w-14 h-12 flex items-center justify-center rounded-xl opacity-100 scale-110 transition-all duration-300" data-view="view-estado">⚡</button>
+    <button class="nav-tab text-2xl w-14 h-12 flex items-center justify-center rounded-xl opacity-40 hover:opacity-80 transition-all duration-300" data-view="view-arsenal">🎒</button>
+    <button class="nav-tab text-2xl w-14 h-12 flex items-center justify-center rounded-xl opacity-40 hover:opacity-80 transition-all duration-300" data-view="view-ajustes">⚙️</button>
+  </nav>
+
+  <script src="/app.js"></script>
+</body>
+</html>

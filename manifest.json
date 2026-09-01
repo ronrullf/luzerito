@@ -1,0 +1,26 @@
+{
+  "name": "Control de Apagones",
+  "short_name": "Apagones",
+  "description": "Gestión y prevención de apagones. Temporizadores, alertas y checklist de preparación.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "theme_color": "#F8F9FA",
+  "background_color": "#F8F9FA",
+  "lang": "es",
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
