@@ -1,13 +1,13 @@
 const { kv } = require('@vercel/kv');
 const webpush = require('web-push');
 
-webpush.setVapidDetails(
-  'mailto:soporte@luzerito.com',
-  process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY,
-  process.env.VAPID_PRIVATE_KEY
-);
-
 module.exports = async function handler(req, res) {
+  webpush.setVapidDetails(
+    'mailto:soporte@luzerito.com',
+    process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY,
+    process.env.VAPID_PRIVATE_KEY
+  );
+
   try {
     const users = await kv.smembers('luzcontrol_users');
     let sent = 0;

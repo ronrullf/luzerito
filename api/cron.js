@@ -1,13 +1,14 @@
 const { kv } = require('@vercel/kv');
 const webpush = require('web-push');
 
-webpush.setVapidDetails(
-  'mailto:soporte@luzerito.com',
-  process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY,
-  process.env.VAPID_PRIVATE_KEY
-);
-
 module.exports = async function handler(req, res) {
+  // Configurar llaves en runtime, no en build-time
+  webpush.setVapidDetails(
+    'mailto:soporte@luzerito.com',
+    process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY,
+    process.env.VAPID_PRIVATE_KEY
+  );
+
   // Seguridad: Solo Vercel Cron puede ejecutar esto
   if (req.headers.authorization !== `Bearer ${process.env.CRON_SECRET}`) {
     return res.status(401).json({ error: 'Unauthorized' });
