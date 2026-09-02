@@ -7,7 +7,7 @@ webpush.setVapidDetails(
   process.env.VAPID_PRIVATE_KEY
 );
 
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
   try {
     const users = await kv.smembers('luzcontrol_users');
     let sent = 0;
