@@ -36,19 +36,35 @@ export default async function handler(req, res) {
       if (cutStart < now) continue;
 
       const diffMs = cutStart.getTime() - now.getTime();
-      const diffHours = diffMs / (1000 * 60 * 60);
+      const diffMinutes = diffMs / (1000 * 60);
 
-      // Lógica de avisos: si faltan entre 1.8h y 2.2h, avisar "Faltan 2 horas"
-      // Como el cron se ejecuta cada hora, podemos redondear
+      // El cron se ejecuta cada 5 minutos, así que buscamos rangos de 5 min.
       let title = '';
       let body = '';
 
-      if (diffHours > 1.8 && diffHours <= 2.2) {
+      if (diffMinutes > 175 && diffMinutes <= 180) {
+        title = '⏳ Faltan 3 horas para el apagón';
+        body = 'Tip: Ve lavando la ropa y adelantando las comidas antes de que se vaya la luz.';
+      } 
+      else if (diffMinutes > 115 && diffMinutes <= 120) {
         title = '⏳ Faltan 2 horas para el apagón';
-        body = `Tu corte de ${config.durationHours}h comienza a las ${config.startTime}. ¡Carga tus baterías!`;
-      } else if (diffHours > 0.8 && diffHours <= 1.2) {
+        body = 'Checklist: Pon a cargar teléfonos, powerbanks y bombillos recargables.';
+      }
+      else if (diffMinutes > 55 && diffMinutes <= 60) {
         title = '⚠️ Falta 1 hora para el apagón';
-        body = 'Desconecta equipos delicados y verifica tu saldo.';
+        body = 'Checklist: Conecta el Mini UPS del módem y verifica tu saldo (Digitel/Movistar).';
+      }
+      else if (diffMinutes > 25 && diffMinutes <= 30) {
+        title = '🚨 Faltan 30 minutos';
+        body = 'Tip: Llena tus tobos de agua y guarda todo tu trabajo en la computadora.';
+      }
+      else if (diffMinutes > 10 && diffMinutes <= 15) {
+        title = '⚡ Faltan 15 minutos';
+        body = 'Checklist: ¡Es hora de desconectar los protectores AC y la nevera!';
+      }
+      else if (diffMinutes > 0 && diffMinutes <= 5) {
+        title = '🌑 Faltan 5 minutos';
+        body = 'El apagón es inminente. Todo debería estar listo. ¡Mantén la calma!';
       }
 
       if (title) {
