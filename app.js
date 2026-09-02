@@ -102,9 +102,72 @@ async function loadConfig() {
 
 async function saveConfig(cfg) {
   currentConfig = cfg;
-  await db.config.put({ id: 'main', ...cfg }); // Guarda asíncronamente en IndexedDB
+  await db.config.put({ id: 'main', ...cfg }); // Guarda local en Dexie
   startDashboardMachine();
+  
+  // Programar las locales (solo funcionan si la app está abierta)
   scheduleNotificationsEngine();
+  
+  // Novedad: Guardar en la Nube de Vercel para notificaciones con la app cerrada
+  await syncCloudSubscription(cfg);
+}
+
+// Generador seguro de UUID para identificar usuarios sin registro
+function getOrCreateUserId() {
+  let uid = localStorage.getItem('luzcontrol_uid');
+  if (!uid) {
+    uid = 'user_' + Math.random().toString(36).substr(2, 9);
+    localStorage.setItem('luzcontrol_uid', uid);
+  }
+  return uid;
+}
+
+// Convierte la VAPID de base64 a Uint8Array
+function urlBase64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - base64String.length % 4) % 4);
+  const base64 = (base64String + padding).replace(/\-/g, '+').replace(/_/g, '/');
+  const rawData = window.atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+  for (let i = 0; i < rawData.length; ++i) { outputArray[i] = rawData.charCodeAt(i); }
+  return outputArray;
+}
+
+// Suscribe al teléfono remotamente
+async function syncCloudSubscription(config) {
+  if (!("serviceWorker" in navigator) || !("PushManager" in window)) return;
+  
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    const permission = await Notification.requestPermission();
+    if (permission !== 'granted') return;
+
+    // Aquí va la VAPID Pública que generamos
+    const PUBLIC_VAPID = "BEwq9V-TVlbqhULWh8do44SDg6bS8tFC0zSjVeBiBzv3aooCDp8tQeFiJ3GIMRYCc9ik1bibWSFoAa_TrAsrfoI";
+    
+    // Obtener o crear suscripción
+    let subscription = await reg.pushManager.getSubscription();
+    if (!subscription) {
+      subscription = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(PUBLIC_VAPID)
+      });
+    }
+
+    // Enviar a nuestro backend
+    await fetch('/api/subscribe', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userId: getOrCreateUserId(),
+        subscription: subscription,
+        config: config
+      })
+    });
+    
+    console.log("✅ Suscripción en la nube sincronizada");
+  } catch (error) {
+    console.error("Error sincronizando Push remoto:", error);
+  }
 }
 
 function initSettingsForm() {
