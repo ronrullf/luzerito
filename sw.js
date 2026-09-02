@@ -1,6 +1,6 @@
 // sw.js - Service Worker Offline y Manejador de Notificaciones
 
-const CACHE_NAME = "luzcontrol-v3";
+const CACHE_NAME = "luzcontrol-v4";
 const ASSETS = [
   "/",
   "/index.html",
